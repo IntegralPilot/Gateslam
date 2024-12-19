@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Abusive VPN Lookup | Wikimedia ToolForge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+  <style>
+    /* General Reset */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', Arial, sans-serif;
+      background-color: #f4f4f9;
+      color: #333;
+      line-height: 1.6;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #333;
+      font-size: 2.5rem;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      color: #007bff;
+      font-size: 1.2rem;
+      text-align: center;
+      margin-bottom: 30px;
+      font-weight: 500;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 10px;
+    }
+
+    /* Search Container */
+    .search-container {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    input[type="text"] {
+      padding: 12px 15px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      width: 100%;
+      max-width: 350px;
+      font-size: 1rem;
+    }
+
+    button {
+      padding: 12px 20px;
+      border-radius: 5px;
+      border: none;
+      background-color: #007bff;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    /* Result Section */
+    .result {
+      margin-top: 20px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      display: none;
+    }
+
+    .result p {
+      margin-bottom: 15px;
+      font-size: 1rem;
+    }
+
+    /* Footer Styling */
+    .footer {
+      background-color: #f8f8f8;
+      padding: 20px;
+      text-align: center;
+      color: #555;
+      margin-top: 50px;
+      border-top: 2px solid #ddd;
+    }
+
+    .footer p {
+      margin-bottom: 10px;
+      font-size: 1rem;
+    }
+
+    .footer ul {
+      list-style-type: none;
+      padding: 0;
+      margin-bottom: 20px;
+    }
+
+    .footer li {
+      font-size: 1rem;
+      color: #007bff;
+    }
+
+    a {
+      color: #007bff;
+      text-decoration: none;
+      font-weight: bold;
+      transition: text-decoration 0.2s;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .search-container {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        max-width: 300px;
+      }
+
+      button {
+        width: 100%;
+        max-width: 300px;
+      }
+
+      .footer {
+        font-size: 0.9rem;
+      }
+
+      h1 {
+        font-size: 2rem;
+      }
+
+      h2 {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Abusive VPN Lookup</h1>
+  <h2>Quickly check if an IP Address belongs to a known exit node of abusive VPN networks and its current block status. Powered by <a href="https://en.wikipedia.org/wiki/User:MolecularBot" target="_blank">MolecularBot's</a> testing and analysis.</h2>
+
+  <div class="search-container">
+    <input type="text" id="ipInput" placeholder="Enter IP address..." />
+    <button onclick="lookupIP()">Lookup</button>
+  </div>
+
+  <div id="result" class="result"></div>
+
+  <div class="footer">
+    <p><strong>Current Networks Checked by the Tool:</strong></p>
+    <ul>
+      <li><a href="https://www.vpngate.net/en/" target="_blak">VPNGate</a></li>
+    </ul>
+    <p>If you'd like to request a new network to be added, please visit <a href="https://en.wikipedia.org/wiki/User_talk:MolecularPilot" target="_blank">User talk:MolecularPilot</a>.</p>
+  </div>
+
+  <script>
+    async function lookupIP() {
+      const ipInput = document.getElementById('ipInput').value.trim();
+      const resultDiv = document.getElementById('result');
+      
+      if (!ipInput) {
+        alert("Please enter an IP address");
+        return;
+      }
+
+      try {
+        const response = await fetch('https://en.wikipedia.org/w/api.php?action=query&format=json&prop=revisions&titles=User:MolecularBot/IPData.json&rvprop=content&origin=*');
+        const data = await response.json();
+        const pages = data.query.pages;
+        const pageKey = Object.keys(pages)[0];
+        const content = pages[pageKey].revisions[0]['*'];
+        const jsonData = JSON.parse(content);
+
+        const ipData = jsonData.find(item => item.ip === ipInput);
+        
+        const blockResponse = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=blocks&bkprop=expiry&bkip=${ipInput}&format=json&origin=*`);
+        const blockData = await blockResponse.json();
+        const isBlocked = blockData.query.blocks && blockData.query.blocks.length > 0;
+
+        resultDiv.style.display = 'block';
+
+        if (ipData) {
+          resultDiv.innerHTML = `
+            <p><strong>IP Address:</strong> ${ipData.ip}</p>
+            <p><strong>Status:</strong> ${ipData.type}</p>
+            <p><strong>Last Sighting on an abusive network:</strong> ${new Date(ipData['last-sighting'] * 1000).toLocaleString()}</p>
+            <p><strong>Blocked on English Wikipedia:</strong> ${isBlocked ? 'Yes' : 'No'}</p>
+          `;
+        } else {
+          resultDiv.innerHTML = `<p>IP is not a known exit node of an abusive VPN network: ${ipInput} </p>`;
+        }
+      } catch (error) {
+        console.error('Error fetching IP data:', error);
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `<p>Error retrieving data. Please try again later.</p>`;
+      }
+    }
+  </script>
+
+</body>
+</html>
