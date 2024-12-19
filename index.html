@@ -158,7 +158,7 @@
 <body>
 
   <h1>Abusive VPN Lookup</h1>
-  <h2>Quickly check if an IP Address belongs to a known exit node of abusive VPN networks and its current block status. Powered by <a href="https://en.wikipedia.org/wiki/User:MolecularBot" target="_blank">MolecularBot's</a> testing and analysis.</h2>
+  <h2>Quickly check if an IP Address belongs to a known exit node of VPN networks used for Wikipedia abuse and its current block status. Powered by <a href="https://en.wikipedia.org/wiki/User:MolecularBot" target="_blank">MolecularBot's</a> testing and analysis.</h2>
 
   <div class="search-container">
     <input type="text" id="ipInput" placeholder="Enter IP address..." />
@@ -209,7 +209,7 @@
             <p><strong>Blocked on English Wikipedia:</strong> ${isBlocked ? 'Yes' : 'No'}</p>
           `;
         } else {
-          resultDiv.innerHTML = `<p>IP is not a known exit node of an abusive VPN network: ${ipInput} </p>`;
+          resultDiv.innerHTML = `<p>IP is not a known exit node of a VPN network used by Wikipedia abusers: ${ipInput} </p>`;
         }
       } catch (error) {
         console.error('Error fetching IP data:', error);
