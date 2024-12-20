@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Abusive VPN Lookup | Wikimedia ToolForge</title>
+  <title>IP Abuse Lookup</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;900&display=swap" rel="stylesheet">
   <style>
     /* General Reset */
     * {
@@ -85,6 +85,18 @@
     .result p {
       margin-bottom: 15px;
       font-size: 1rem;
+    }
+
+    .result .warning {
+      color: red;
+    }
+
+    .result .moderate {
+      color: orange;
+    }
+
+    .result .good {
+      color: green;
     }
 
     /* Footer Styling */
@@ -199,14 +211,22 @@
         const blockData = await blockResponse.json();
         const isBlocked = blockData.query.blocks && blockData.query.blocks.length > 0;
 
+        const currentTime = Math.floor(Date.now() / 1000);
+
         resultDiv.style.display = 'block';
 
         if (ipData) {
+          const daysSinceSighting = Math.floor((currentTime - ipData['last-sighting']) / (60 * 60 * 24));
+          const sightingSeverity = ipData.sightings >= 10 ? 'warning' : ipData.sightings >= 5 ? 'moderate' : 'good';
+          const lastSightingSeverity = daysSinceSighting < 7 ? 'warning' : daysSinceSighting < 30 ? 'moderate' : 'good';
+
           resultDiv.innerHTML = `
             <p><strong>IP Address:</strong> ${ipData.ip}</p>
             <p><strong>Status:</strong> ${ipData.type}</p>
-            <p><strong>Last Sighting on an abusive network:</strong> ${new Date(ipData['last-sighting'] * 1000).toLocaleString()}</p>
+            <p class="${lastSightingSeverity}"><strong>Last Sighting:</strong> ${daysSinceSighting != 0 ? `${daysSinceSighting} day${daysSinceSighting != 1 ? "s" : ""} ago` : "Today"}</p>
+            <p class="${sightingSeverity}"><strong>Reported Sightings:</strong> ${ipData.sightings} time${ipData.sightings != 1 ? "s" : ""} on abusive networks</p>
             <p><strong>Blocked on English Wikipedia:</strong> ${isBlocked ? 'Yes' : 'No'}</p>
+            <p><a href="https://en.wikipedia.org/wiki/Special:Contributions/${ipInput}" target="_blank">View Contributions</a></p>
           `;
         } else {
           resultDiv.innerHTML = `<p>IP is not a known exit node of a VPN network used by Wikipedia abusers: ${ipInput} </p>`;

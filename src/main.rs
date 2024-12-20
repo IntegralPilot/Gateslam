@@ -64,6 +64,10 @@ async fn main() {
             std::process::exit(1);
         },
     }
+    
+    // print the goal rate required to test each server in 1 hour
+    let duration_secs = (60 * 60) / configurations.len() as u64;
+    println!("   Each server will be tested for {} seconds.", duration_secs.to_string().blue().bold());
 
     let initial_ip: String;
 
@@ -87,13 +91,15 @@ async fn main() {
     for config in configurations.clone() {
         print!("   {} to connect to VPN server {}...", "Attempting".green().bold(), index.to_string().blue().bold());
         io::stdout().flush().unwrap();
-        match timeout(Duration::from_secs(30), test_vpn(index, config.clone(), initial_ip.clone())).await {
+        match timeout(Duration::from_secs(60), test_vpn(index, config.clone(), initial_ip.clone())).await {
             Ok(Ok(ip)) => {
                 println!(" egress IP is {}", ip.clone().blue().bold());
                 
                 if cfg!(feature = "mediawiki") {
                     // see if the IP is found in the current_data
                     if current_data.iter().any(|entry| entry.ip == ip.clone()) {
+                        // capture the number of sightings for the IP
+                        let sightings = current_data.iter().find(|entry| entry.ip == ip.clone()).unwrap().sightings;
                         // remove the entry from current_data
                         current_data = current_data.iter().filter(|entry| entry.ip != ip.clone()).cloned().collect();
                         // get the current unix timestamp in seconds
@@ -103,6 +109,7 @@ async fn main() {
                             ip: ip.clone(),
                             type_: IPDataType::ConfimedVpngateEgress,
                             last_sighting: now,
+                            sightings: sightings + 1,
                         };
                         // add the new entry to the current_data
                         current_data.push(new_entry);
@@ -119,6 +126,7 @@ async fn main() {
                             ip: ip.clone(),
                             type_: IPDataType::ConfimedVpngateEgress,
                             last_sighting: now,
+                            sightings: 1,
                         };
                         current_data.push(new_entry);
                         // update the page

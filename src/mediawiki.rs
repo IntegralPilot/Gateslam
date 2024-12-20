@@ -13,4 +13,5 @@ pub struct IPDataEntry {
     pub type_: IPDataType,
     #[serde(rename = "last-sighting")]
     pub last_sighting: u64,
+    pub sightings: u32,
 }

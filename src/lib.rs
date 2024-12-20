@@ -191,6 +191,12 @@ pub async fn test_vpn(index: u16, config: String, initial_ip: String) -> Result<
         return Err("IP address did not change after connecting to VPN".into());
     }
 
+    // check that new_ip is in the format of an IP address
+    let ip_regex = regex::Regex::new(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$").unwrap();
+    if !ip_regex.is_match(&new_ip) {
+        return Err("New IP address is not in the correct format".into());
+    }
+
     terminate_openvpn().await?;
     Ok(new_ip)
 }
