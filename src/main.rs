@@ -1,11 +1,15 @@
 use colored::Colorize;
-use gateslam::{mediawiki::{IPDataEntry, IPDataType}, test_vpn};
+use gateslam::{mediawiki::{IPDataEntry, IPDataType}, terminate_openvpn, test_vpn};
 use mwbot::Page;
 use std::io::{self, Write};
-use tokio::time::{timeout, Duration};
+use tokio::time::Duration;
 
 #[tokio::main]
 async fn main() {
+    run().await.await;
+}
+
+async fn run() -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
     let configurations: Vec<String>;
     println!("{} {} by {} - Discover VPNGate egress IP addresses.", "Gateslam".blue().bold(), "0.1.0".blue(), "IntegralPilot".bold());
     let bot;
@@ -51,12 +55,15 @@ async fn main() {
             }
         };
     }
+
+    let hash: String;
     print!("   {} configuration for each VPNGate server... ", "Retrieving".green().bold());
     io::stdout().flush().unwrap();  // Manually flush the buffer to ensure the above message is printed before the fetch_configs() function is called.
     match gateslam::fetch_configs().await {
         Ok(configs) => {
-            configurations = configs.clone();
-            println!("found {} {}!", configs.len().to_string().blue().bold(), "servers".blue());
+            hash = configs.1;
+            configurations = configs.0.clone();
+            println!("found {} {}!", configs.0.len().to_string().blue().bold(), "servers".blue());
         },
         Err(e) => {
             println!();
@@ -91,10 +98,8 @@ async fn main() {
     for config in configurations.clone() {
         print!("   {} to connect to VPN server {}...", "Attempting".green().bold(), index.to_string().blue().bold());
         io::stdout().flush().unwrap();
-        match timeout(Duration::from_secs(60), test_vpn(index, config.clone(), initial_ip.clone())).await {
-            Ok(Ok(ip)) => {
-                println!(" egress IP is {}", ip.clone().blue().bold());
-                
+        match test_vpn(index, config.clone(), initial_ip.clone(), duration_secs).await {
+            Ok(ip) => {
                 if cfg!(feature = "mediawiki") {
                     // see if the IP is found in the current_data
                     if current_data.iter().any(|entry| entry.ip == ip.clone()) {
@@ -140,15 +145,36 @@ async fn main() {
                 }
 
             },
-            Ok(Err(e)) => {
+            Err(e) => {
                 println!();
                 eprintln!("      {} to connect to VPN: {}", "Failed".red().bold(), e);
-            },
-            Err(_) => {
-                println!();
-                eprintln!("      {} to connect to VPN: {}", "Failed".red().bold(), "Timeout".red().bold());
-            },
+            }
         }
         index += 1;
+    }
+    // confirm all VPN sessions have been terminated
+    match terminate_openvpn().await {
+        Ok(_) => println!("   {} all OpenVPN sessions.", "Terminated".green().bold()),
+        Err(_) => {
+            /* there were none to terminate, means every process was correctly terminated in main loop. */
+        }
+    }
+    // now re-fetch the config every 5 minutes, and if the hash changes, call run() again
+    loop {
+        match gateslam::fetch_configs().await {
+            Ok(new_configs) => {
+                let new_hash = new_configs.1;
+                if new_hash != hash {
+                    println!("   {} - new configuration detected, restarting...", "Change detected".yellow().bold());
+                    Box::pin(run()).await.await;  // Call run() again if the hash changes
+                } else {
+                    println!("   {} - no configuration change detected.", "No change".green().bold());
+                }
+            },
+            Err(e) => {
+                eprintln!("   {} to re-fetch configs: {}", "Failed".red().bold(), e);
+            },
+        }
+        tokio::time::sleep(Duration::from_secs(60 * 5)).await; 
     }
 }

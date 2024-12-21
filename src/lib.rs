@@ -1,13 +1,16 @@
 use base64::Engine;
-use tokio::{fs, io::{AsyncReadExt, AsyncWriteExt, BufReader}, process::Command};
-use std::process::Stdio;
+use colored::Colorize;
+use tokio::{fs, io::{AsyncReadExt, AsyncWriteExt, BufReader}, process::Command, time::timeout};
+use std::{process::Stdio, time::Duration};
 
 pub mod mediawiki;
 
 /// Fetch the currently available VPN configurations from vpngate.net, in OpenVPN format.
-/// Returns a vector of strings, each string containing the contents of the OpenVPN configuration file needed to connect to that VPN server.
+/// Returns a tuple:
+/// 0 is vector of strings, each string containing the contents of the OpenVPN configuration file needed to connect to that VPN server.
+/// 1 is the hash of the data recieved in the body response.
 /// In case of an error, returns a string with an error message.
-pub async fn fetch_configs() -> Result<Vec<String>, String> {
+pub async fn fetch_configs() -> Result<(Vec<String>, String), String> {
     // use reqwest to GET https://www.vpngate.net/api/iphone/
     // parse the response (it is in CSV format) and return the config
 
@@ -21,6 +24,9 @@ pub async fn fetch_configs() -> Result<Vec<String>, String> {
         Ok(text) => text,
         Err(e) => return Err(format!("Failed to get response text: {}", e)),
     };
+
+    // get hash of the response
+    let hash = format!("{:x}", md5::compute(response_text.clone()));
 
     // remove the first two lines
     let response_text = response_text.lines().skip(2).collect::<Vec<&str>>().join("\n");
@@ -54,7 +60,7 @@ pub async fn fetch_configs() -> Result<Vec<String>, String> {
         openvpn_configs.push(openvpn_config);
     }
 
-    Ok(openvpn_configs)
+    Ok((openvpn_configs, hash))
 
 }
 
@@ -62,20 +68,20 @@ pub async fn fetch_configs() -> Result<Vec<String>, String> {
 /// Returns the egress IP address being used by the current connection.
 /// In case of an error, returns a string with an error message.
 pub async fn get_ip() -> Result<String, String> {
-    // use reqwest to GET https://api.ipify.org
+    // use reqwest to GET https://vpngate.net
     // parse the response and return the IP address
 
-    let response = match reqwest::Client::builder().danger_accept_invalid_certs(true).build().unwrap().get("https://api.ipify.org").send().await {
+    let response = match reqwest::Client::builder().danger_accept_invalid_certs(true).build().unwrap().get("http://api.ipify.org").send().await {
         Ok(response) => response,
         Err(e) => return Err(format!("Failed to get response: {:?}", e)),
     };
 
     let ip = match response.text().await {
-        Ok(text) => text,
+        Ok(ip) => ip,
         Err(e) => return Err(format!("Failed to get response text: {}", e)),
     };
 
-    Ok(ip)
+    Ok(ip.to_string())
 }
 
 /// Connect to the VPN server using the provided OpenVPN configuration.
@@ -138,19 +144,18 @@ pub async fn connect(index: u16, config: String) -> Result<String, String> {
         buf_reader.read_buf(&mut buffer).await.unwrap();
 
         if let Ok(line) = String::from_utf8(buffer.clone()) {
+             // write the line to the log file
+             match fs::OpenOptions::new().append(true).create(true).open(&temp_log).await {
+                Ok(mut file) => {
+                    match file.write_all(line.as_bytes()).await {
+                        Ok(_) => {},
+                        Err(e) => return Err(format!("Failed to write to log file: {}", e)),
+                    }
+                },
+                Err(e) => return Err(format!("Failed to open log file: {}", e)),
+            };
             if line.contains("Initialization Sequence Completed") {
                 break;
-            } else {
-                // write the line to the log file
-                match fs::OpenOptions::new().append(true).create(true).open(&temp_log).await {
-                    Ok(mut file) => {
-                        match file.write_all(line.as_bytes()).await {
-                            Ok(_) => {},
-                            Err(e) => return Err(format!("Failed to write to log file: {}", e)),
-                        }
-                    },
-                    Err(e) => return Err(format!("Failed to open log file: {}", e)),
-                };
             }
         }
 
@@ -181,11 +186,31 @@ pub async fn terminate_openvpn() -> Result<(), String> {
 /// `config` is a string containing the contents of the OpenVPN configuration file needed to connect to the VPN server.
 /// `initial_ip` is the initial IP address before connecting to the VPN.
 /// In case of an error, returns a string with an error message.
-pub async fn test_vpn(index: u16, config: String, initial_ip: String) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn test_vpn(index: u16, config: String, initial_ip: String, max_stage_time: u64) -> Result<String, Box<dyn std::error::Error>> {
     // Connect to the VPN server
-    connect(index, config).await?;
+    match timeout(Duration::from_secs(max_stage_time), connect(index, config)).await {
+        Ok(Ok(_)) => {
+            print!(" connected!");
+        },
+        Ok(Err(e)) => {
+            return Err(e.into());
+        },
+        Err(_) => {
+            return Err("Connection to VPN server timed out".into());
+        }
+    }
     // Get the new IP address after connecting to the VPN
-    let new_ip = get_ip().await?;
+    let new_ip = match timeout(Duration::from_secs(max_stage_time), get_ip()).await {
+        Ok(Ok(new_ip)) => {
+            new_ip
+        },
+        Ok(Err(e)) => {
+            return Err(e.into());
+        },
+        Err(_) => {
+            return Err("Failed to get new IP address".into());
+        }
+    };
 
     if initial_ip == new_ip {
         return Err("IP address did not change after connecting to VPN".into());
@@ -196,6 +221,8 @@ pub async fn test_vpn(index: u16, config: String, initial_ip: String) -> Result<
     if !ip_regex.is_match(&new_ip) {
         return Err("New IP address is not in the correct format".into());
     }
+
+    println!(" Egress IP is {}", new_ip.clone().blue().bold());
 
     terminate_openvpn().await?;
     Ok(new_ip)
