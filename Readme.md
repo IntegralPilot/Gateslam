@@ -6,6 +6,8 @@
 
 Gateslam is a tool for automatically fetching VPN configurations from [VPNGate](https://www.vpngate.net/), connecting to these VPN servers using OpenVPN, and retrieving the new egress IP address after connection. The tool can also update a MediaWiki page with the discovered IP addresses.
 
+_Note: This is useful to the operators of web servers who want to know when a user is using VPNgate to connect to their server. It is **not** helpful in any way to schools, companies or countries wanting to block access to VPNgate (if this is you, don't use this because it won't block anything), because it detects the IP addresses used for VPNgate to talk to servers, **not** the IP addresses used for users to talk to VPNgate - they are a different set._
+
 This project supports:
 - Fetching VPN configurations from VPNGate in OpenVPN format.
 - Connecting to VPNGate servers and verifying that the connection is successful.
