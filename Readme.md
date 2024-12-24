@@ -28,6 +28,7 @@ When using a modern VPN (Virtual Private Network) like VPNGate, there are two ty
 2. **Test VPN Connections**: Attempts to connect to each VPN server, retrieves the new egress IP, and compares it to the original IP.
 3. **MediaWiki Integration** (Optional): Posts the discovered egress IP addresses to a MediaWiki page (such as Wikipedia).
 4. **Logging**: Logs all connection attempts and outputs the results to a log file for each server.
+5. **Access frontend**: `index.html` provides an access frontend to Wikipedia's list of detected VPNgate egress IPs (currently hosted at https://molecularbot2.toolforge.org). Support for using it as a frontend for your own list is coming soon.
 
 Note: Enabling MediaWiki integration requires enabling the optional cargo feature `mediawiki`.
 
@@ -38,5 +39,5 @@ Note: Enabling MediaWiki integration requires enabling the optional cargo featur
 - **Rust**: The project uses Rust as the primary programming language. Install Rust from [rust-lang.org](https://www.rust-lang.org/).
 - **Root**: Some operations, such as starting the VPN connection, require root privileges.
 - **MediaWiki Integration** (Optional): If using the MediaWiki feature, configure access to a MediaWiki site with a bot user.
-- - The bot should have the username `MolecularBot` and you need to create the page `User:MolecularBot/IPData.json`.
-- - You also need to setup `mwbot` by creating and populating `~/.config/mwbot.toml` with API urls and login credentials. See [that project's page](https://crates.io/crates/mwbot) for instructions.
+  - The bot should have the username `MolecularBot` and you need to create the page `User:MolecularBot/IPData.json`.
+  - You also need to setup `mwbot` by creating and populating `~/.config/mwbot.toml` with API urls and login credentials. See [that project's page](https://crates.io/crates/mwbot) for instructions.
